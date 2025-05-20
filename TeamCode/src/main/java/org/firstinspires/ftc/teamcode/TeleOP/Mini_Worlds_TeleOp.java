@@ -1,228 +1,380 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.example.java;
 
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
-import com.qualcomm.robotcore.robocol.Command;
 import com.rowanmcalpin.nextftc.core.Subsystem;
+import com.rowanmcalpin.nextftc.core.command.Command;
 import com.rowanmcalpin.nextftc.core.command.groups.ParallelGroup;
+import com.rowanmcalpin.nextftc.core.command.groups.SequentialGroup;
+import com.rowanmcalpin.nextftc.core.command.utility.InstantCommand;
+import com.rowanmcalpin.nextftc.core.command.utility.SingleFunctionCommand;
+import com.rowanmcalpin.nextftc.core.command.utility.conditionals.BlockingConditionalCommand;
+import com.rowanmcalpin.nextftc.core.command.utility.conditionals.PassiveConditionalCommand;
 import com.rowanmcalpin.nextftc.core.control.controllers.PIDFController;
 import com.rowanmcalpin.nextftc.core.control.controllers.feedforward.StaticFeedforward;
 import com.rowanmcalpin.nextftc.ftc.NextFTCOpMode;
+import com.rowanmcalpin.nextftc.ftc.OpModeData;
+import com.rowanmcalpin.nextftc.ftc.driving.MecanumDriverControlled;
+import com.rowanmcalpin.nextftc.ftc.hardware.MultipleServosToPosition;
+import com.rowanmcalpin.nextftc.ftc.hardware.ServoToPosition;
+import com.rowanmcalpin.nextftc.ftc.hardware.controllables.HoldPosition;
 import com.rowanmcalpin.nextftc.ftc.hardware.controllables.MotorEx;
+import com.rowanmcalpin.nextftc.ftc.hardware.controllables.MotorGroup;
+import com.rowanmcalpin.nextftc.ftc.hardware.controllables.ResetEncoder;
 import com.rowanmcalpin.nextftc.ftc.hardware.controllables.RunToPosition;
+import com.rowanmcalpin.nextftc.ftc.hardware.controllables.SetPower;
 
-@TeleOp(name = "MiniWorlds TeleOp")
-public class Mini_Worlds_TeleOp extends LinearOpMode {
-    DcMotor BL, BR, FL, FR, RL, LL, RP, LP;
-    Servo LightsL, LightsR, LeftS, RightS, DiffL, DiffR, Claw;
-    TouchSensor ClawT, LSwitch;
-    double DriveSpeed = 0.5;
-    double claw_open = 0.45;
-    double claw_closed = 0.19;
-    boolean chicken;
-    int dpad = 0;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
+import java.util.List;
+
+
+@TeleOp(name = "Mini_worlds_Teleop")
+public class Mini_World_Teleop extends NextFTCOpMode {
+
+    public Mini_World_Teleop() {
+        super(pitch.INSTANCE,claw.INSTANCE,diff.INSTANCE,shoulder.INSTANCE,lift.INSTANCE,ClawTouch.INSTANCE);
+    }
+    public String frontLeftName = "FL";
+    public String frontRightName = "FR";
+    public String backLeftName = "BL";
+    public String backRightName = "BR";
+    public MotorEx FL,FR,BL,BR,RL,LL, RP,LP;
+    private TouchSensor ClawT;
+    public Servo Sweep,DiffR,DiffL,LightL,LightR;
+    public MotorEx[] motors;
+    public MotorGroup drive_train;
+    public MecanumDriverControlled driverControlled;
+    double DriveSpeed;
+    public boolean grip = true;
     @Override
-    public void runOpMode() {
-        // Initialize hardware
-        BL = hardwareMap.get(DcMotor.class, "BL");
-        BR = hardwareMap.get(DcMotor.class, "BR");
-        FL = hardwareMap.get(DcMotor.class, "FL");
-        FR = hardwareMap.get(DcMotor.class, "FR");
-        RL = hardwareMap.get(DcMotor.class, "RL");
-        LL = hardwareMap.get(DcMotor.class, "LL");
-        RP = hardwareMap.get(DcMotor.class, "RP");
-        LP = hardwareMap.get(DcMotor.class, "LP");
-        LightsR = hardwareMap.get(Servo.class, "LightsR");
-        LightsL = hardwareMap.get(Servo.class, "LightsL");
-        Claw = hardwareMap.get(Servo.class, "Claw");
-        LeftS = hardwareMap.get(Servo.class, "LeftS");
-        RightS = hardwareMap.get(Servo.class, "RightS");
-        DiffR = hardwareMap.get(Servo.class, "DiffR");
-        DiffL = hardwareMap.get(Servo.class, "DiffL");
-        ClawT = hardwareMap.get(TouchSensor.class, "ClawT");
-        LSwitch = hardwareMap.get(TouchSensor.class, "LSwitch");
-        RP.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        LP.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        RL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        LL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    public void onInit() {
+        LL = new MotorEx("LL");
+        RL = new MotorEx("RL");
+        FL = new MotorEx("FL");
+        BL = new MotorEx("BL");
+        BR = new MotorEx("BR");
+        FR = new MotorEx("FR");
+        RP = new MotorEx("RP");
+        LP = new MotorEx("LP");
 
-        // Configure motors
-        RP.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        RP.setMode(DcMotor.RunMode.RUN_USING_ENCODER); // Use encoder for position control
-        LP.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER); // LP follows RP
-        RP.setDirection(DcMotor.Direction.REVERSE);
-        RL.setDirection(DcMotor.Direction.REVERSE);
-        DiffR.setDirection(Servo.Direction.REVERSE);
-        LeftS.setDirection(Servo.Direction.REVERSE);
+        ClawT = OpModeData.INSTANCE.getHardwareMap().get(TouchSensor.class, "ClawT");
 
-        telemetry.addData("Status", "Initialized");
-        telemetry.addData("Pitch", RP.getCurrentPosition());
+
+        // Change the motor directions to suit your robot.
+        FL.setDirection(DcMotorSimple.Direction.REVERSE);
+        BL.setDirection(DcMotorSimple.Direction.REVERSE);
+        FR.setDirection(DcMotorSimple.Direction.FORWARD);
+        BR.setDirection(DcMotorSimple.Direction.FORWARD);
+        drive_train = new MotorGroup(FL,FR,BL,BR);
+        motors = new MotorEx[] {FL, FR, BL, BR};
+        telemetry.addData("Status", "Touch Sensor Initialized");
+
         telemetry.update();
 
-        waitForStart();
 
-        while (opModeIsActive()) {
-            // Drivetrain control
-            movement();
+    }
 
+    @Override
+    public void onStartButtonPressed() {
 
-            // Claw and servo control
-            if (gamepad2.dpad_up) {
-                LeftS.setPosition(.15);
-                RightS.setPosition(.15);
-
-            }
-            if (gamepad2.dpad_down) {
-                LeftS.setPosition(0);
-                RightS.setPosition(0);
-                DiffL.setPosition(.15);
-                DiffR.setPosition(.15);
-            }
-            if (gamepad2.dpad_left) {
-                DiffL.setPosition(.5);
-                DiffR.setPosition(.5);
-            }
-            // Linear actuator (RL, LL) control/
-            if (gamepad2.right_bumper) {
-                RL.setPower(1.5);
-                LL.setPower(1.5);
-            } else if (gamepad2.left_bumper) {
-                RL.setPower(-1.5);
-                LL.setPower(-1.5);
-            } else {
-                RL.setPower(0);
-                LL.setPower(0);
-                RP.setPower(0);
-                LP.setPower(0);
-                //LightsR.setPosition(.5);
-                //LightsL.setPosition(.5);
-            }
-            if (ClawT.isPressed()) {
-                Claw.setPosition(.19);
-                chicken = true;
-                sleep(250);
-            }
-            if (gamepad2.x) {
-                if (chicken == true) {
-                    Claw.setPosition(.45);
-                    chicken = false;
-                    sleep(250);
-                }else if (chicken == false) {
-                    Claw.setPosition(.23);
-                    chicken = true;
-                    sleep(250);
-                }
-            }
+        driverControlled = new MecanumDriverControlled(motors, gamepadManager.getGamepad1());
+        driverControlled.invoke();
 
 
-            // Pitching slides control
-            /*if (gamepad2.dpad_up) {
-                pitch(2856, 0.3, 5000); // Move to target position (2856 counts)
-            } else if (gamepad1.dpad_up) {
-                if (gamepad2.a) {
-                    RP.setPower(0.5);
-                    LP.setPower(0.5);
-                } else if (gamepad2.b) {
-                    RP.setPower(-0.5);
-                    LP.setPower(-0.5);
+        ClawTouch.INSTANCE.checkPressed().invoke();
+
+        gamepadManager.getGamepad1().getRightBumper().getPressedCommand();
+
+        new ResetEncoder(LL);
+        new ResetEncoder(RL);
+        gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(diff.INSTANCE::mid_l);
+        gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(diff.INSTANCE::mid_r);
+        gamepadManager.getGamepad2().getDpadDown().setPressedCommand(diff.INSTANCE::grab_l);
+        gamepadManager.getGamepad2().getDpadDown().setPressedCommand(diff.INSTANCE::grab_r);
+        gamepadManager.getGamepad2().getDpadUp().setPressedCommand(diff.INSTANCE::drop_l);
+        gamepadManager.getGamepad2().getDpadUp().setPressedCommand(diff.INSTANCE::drop_r);
+        gamepadManager.getGamepad1().getX().setPressedCommand(shoulder.INSTANCE::zero);
+        gamepadManager.getGamepad1().getA().setPressedCommand(shoulder.INSTANCE::not_zero);
+        //gamepadManager.getGamepad1().getDpadLeft().setPressedCommand(lift.INSTANCE::Test_L);
+        //gamepadManager.getGamepad1().getDpadLeft().setPressedCommand(lift.INSTANCE::Test_R);
+
+
+        gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(
+                () -> new ParallelGroup(
+                        lift.INSTANCE.Test_L(),
+                        lift.INSTANCE.Test_R()
+                )
+        );
+        gamepadManager.getGamepad2().getDpadUp().setPressedCommand(
+                () -> new SequentialGroup(
+                        new ParallelGroup(
+                                pitch.INSTANCE.Score_L_Bar(),
+                                pitch.INSTANCE.Score_R_Bar()
+                        ),
+                        pitch.INSTANCE.Stop()
+                )
+        );
+        gamepadManager.getGamepad2().getDpadDown().setPressedCommand(
+                () -> new ParallelGroup(
+                        diff.INSTANCE.grab_l(),
+                        diff.INSTANCE.grab_r()
+                )
+        );
+        telemetry.update();
+    }
+
+    public static class ClawTouch extends Subsystem {
+        // Singleton instance
+        public static final ClawTouch INSTANCE = new ClawTouch();
+        public ClawTouch() { }
+        // Touch sensor hardware
+        private TouchSensor ClawT;
+
+        // Command to check if the sensor is pressed and update telemetry
+        public Command checkPressed() {
+            return new SingleFunctionCommand(() -> {
+                if (ClawT.isPressed()) {
+                    OpModeData.INSTANCE.getTelemetry().addData("Claw Touch Sensor", "Is Pressed");
+                    OpModeData.INSTANCE.getTelemetry().update();
+                    claw.INSTANCE.close();
                 } else {
-                    RP.setPower(.5); // Stop motors instead of opposing powers
-                    LP.setPower(-.5);
+                    OpModeData.INSTANCE.getTelemetry().addData("Claw Touch Sensor", "Is Not Pressed");
+                    OpModeData.INSTANCE.getTelemetry().update();
                 }
-            } else {
-                RP.setPower(.5);
-                LP.setPower(-.5);
-            }*/
-
-            // Telemetry
-            telemetry.addData("Pitch", RP.getCurrentPosition());
-            telemetry.addData("Claw Position", Claw.getPosition());
-            telemetry.addData("Touch", ClawT.isPressed());
-            telemetry.addData("LSwitch", LSwitch.isPressed());
-            telemetry.update();
-
-            idle(); // Ensure other inputs are processed
+                return true;
+            });
         }
 
-    }
-    /*public void clawpos() {
-        switch (dpad) {
-            case 0:
-                LeftS.setPosition(0.5);
-                RightS.setPosition(0.5);
-                DiffR.setPosition(0.5);
-                DiffL.setPosition(0.12);
-                break;
-            case 1:
-                LeftS.setPosition(0.32);
-                RightS.setPosition(0.32);
-                DiffR.setPosition(0.15);
-                DiffL.setPosition(0.15);
-                break;
-            default:
-                // No action for undefined cases
-                break;
+        @Override
+        public void initialize() {
+            ClawT = OpModeData.INSTANCE.getHardwareMap().get(TouchSensor.class, "ClawT");
         }
-    }*/
-
-    public Command movement() {
-        FL.setPower(DriveSpeed * (gamepad1.left_stick_y - gamepad1.left_stick_x - gamepad1.right_stick_x));
-        BL.setPower(DriveSpeed * (gamepad1.left_stick_y + gamepad1.left_stick_x - gamepad1.right_stick_x));
-        FR.setPower(DriveSpeed * (-gamepad1.left_stick_y - gamepad1.left_stick_x - gamepad1.right_stick_x));
-        BR.setPower(DriveSpeed * (-gamepad1.left_stick_y + gamepad1.left_stick_x - gamepad1.right_stick_x));
-
-        DriveSpeed = gamepad1.right_bumper ? 1.0 : 0.5;
-        return null;
     }
-    public void pitch(int targetPos, double power, int steps) {
-        int currentPos = RP.getCurrentPosition();
-        if (Math.abs(currentPos - targetPos) < 5 || steps <= 0) {
-            RP.setPower(0);
-            LP.setPower(0);
-            return;
+    public static class shoulder extends Subsystem {
+        public static final shoulder INSTANCE = new shoulder();
+        private shoulder() {}
+        Servo LeftS,RightS;
+        public MultipleServosToPosition zero() {
+            return new MultipleServosToPosition(
+                    List.of(
+                            LeftS,
+                            RightS
+                    ),
+                    0,
+                    this
+            );
         }
-        int direction = (targetPos > currentPos) ? 1 : -1;
-        RP.setPower(direction * power);
-        LP.setPower(direction * power);
-        pitch(targetPos, power, steps - 1);
+        public MultipleServosToPosition not_zero() {
+            return new MultipleServosToPosition(
+                    List.of(
+                            LeftS,
+                            RightS
+                    ),
+                    .5,
+                    this
+            );
+        }
+
+        @Override
+        public void initialize() {
+            LeftS = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "LeftS");
+            RightS = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "RightS");
+            RightS.setDirection(Servo.Direction.REVERSE);
+        }
+    }
+    public static class pitch extends Subsystem {
+        public static final pitch INSTANCE = new pitch();
+        private pitch() {}
+
+        public MotorEx RP, LP;
+        public MotorGroup pitching;
+
+        public VoltageSensor voltageSensor;
+        double nominalVoltage = 14.0;
+
+        // Tuned base constants
+        double baseKp = 0.001;
+        double baseKd = 0.0001;
+        double baseKF = 0.0;
+
+        public PIDFController controller2;
+        public PIDFController stop = new PIDFController(0.1, 0.0, 0.0001, new StaticFeedforward(0.0));
+
+        public String LPName = "LP";
+        public String RPName = "RP";
+
+        public int target = 45;
+
+        public RunToPosition Score_R_Bar() {
+            return new RunToPosition(RP, target, controller2, this);
+        }
+
+        public RunToPosition Score_L_Bar() {
+            return new RunToPosition(LP, target, controller2, this);
+        }
+
+        public HoldPosition Stop() {
+            return new HoldPosition(pitching, stop, this);
+        }
+
+        @Override
+        public void initialize() {
+            // Motors
+            RP = new MotorEx(RPName);
+            LP = new MotorEx(LPName);
+            LP.setDirection(DcMotorSimple.Direction.REVERSE);
+            pitching = new MotorGroup(RP, LP);
+
+            // Reset encoders
+            new ResetEncoder(RP);
+            new ResetEncoder(LP);
+
+            // Voltage sensor (safe fallback)
+            for (VoltageSensor sensor : OpModeData.INSTANCE.getHardwareMap().getAll(VoltageSensor.class)) {
+                if (sensor.getVoltage() > 0) {
+                    voltageSensor = sensor;
+                    break;
+                }
+            }
+
+            if (voltageSensor == null) {
+                throw new RuntimeException("No valid voltage sensor found!");
+            }
+
+            // Scale PID constants based on current voltage
+            double currentVoltage = voltageSensor.getVoltage();
+            double scale = nominalVoltage / currentVoltage;
+
+            double newKP = baseKp * scale;
+            double newKD = baseKd * scale;
+            double newKF = baseKF * scale;
+
+            // Create scaled PIDF controller
+            controller2 = new PIDFController(newKP, 0.0, newKD, new StaticFeedforward(newKF));
+        }
+    }
+    public static class lift extends Subsystem {
+        public static final lift INSTANCE = new lift();
+        private lift() { }
+
+        public MotorEx RL,LL;
+
+
+        public PIDFController controller = new PIDFController(0.0025, 0.0, 0.0, new StaticFeedforward(0.0));
+
+        public Command Test_L() {
+            return new RunToPosition(LL,500,controller,this);
+        }
+        public Command Test_R() {
+            return new RunToPosition(RL,500,controller,this);
+        }
+
+        @Override
+        public void initialize() {
+            RL = new MotorEx("RL");
+            LL = new MotorEx("LL");
+        }
+
 
     }
-    public class pitching extends Subsystem {
-        // BOILERPLATE
-        public final pitching INSTANCE = new pitching();
-        private pitching() { }
+    public static class sweeping extends Subsystem {
+        public static final sweeping INSTANCE = new sweeping();
+        private sweeping() { }
 
-        // USER CODE HERE
-        public MotorEx RP,LP;
-        public PIDFController controller = new PIDFController(0.005, 0.0, 0.0, new StaticFeedforward(0.0));
-        public String name = "Pitch motors";
+        public Servo Sweep;
 
-        public RunToPosition mid_pitch() {
-            return new RunToPosition(RP, // MOTOR TO MOVE
-                    500.0, // TARGET POSITION, IN TICKS
-                    controller, // CONTROLLER TO IMPLEMENT
-                    this); // IMPLEMENTED SUBSYSTEM
+        public Command out() {
+            return new ServoToPosition(Sweep, // SERVO TO MOVE
+                    0.5, // POSITION TO MOVE TO
+                    this);
+        }
+        public Command in() {
+            return new ServoToPosition(Sweep, // SERVO TO MOVE
+                    0, // POSITION TO MOVE TO
+                    this);
         }
         @Override
         public void initialize() {
-            RP = new MotorEx("RP");
-            LP = new MotorEx("LP");
-        }
-
-    }
-    public class drive extends Subsystem {
-        public final drive INSTANCE = new drive();
-        private drive() { }
-        public DcMotor BL, BR, FL, FR;
-        public Command driving() {
-            return movement();
+            Sweep = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "Sweep");
         }
     }
+    public static class diff extends Subsystem {
+        public static final diff INSTANCE = new diff();
+        private diff() { }
 
+        Servo DiffR,DiffL;
+
+
+        public Command mid_l() {
+            return new ServoToPosition(DiffL, // SERVO TO MOVE
+                    0.5, // POSITION TO MOVE TO
+                    this); // IMPLEMENTED SUBSYSTEM
+        }
+        public Command mid_r() {
+            return new ServoToPosition(DiffR, // SERVO TO MOVE
+                    0.5, // POSITION TO MOVE TO
+                    this); // IMPLEMENTED SUBSYSTEM
+        }
+
+        public Command grab_r() {
+            return new ServoToPosition(DiffR,.9,this);
+        }
+        public Command grab_l() {
+            return new ServoToPosition(DiffL,.1,this);
+        }
+        public Command drop_r() {
+            return new ServoToPosition(DiffR,.18,this);
+        }
+        public Command drop_l() {
+            return new ServoToPosition(DiffL,.83,this);
+        }
+
+
+
+        @Override
+        public void initialize() {
+            DiffR = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "DiffR");
+            DiffL = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "DiffL");
+        }
+    }
+    public static class claw extends Subsystem {
+        // BOILERPLATE
+        public static final claw INSTANCE = new claw();
+        private claw() { }
+
+        // USER CODE
+        public Servo Claw;
+
+        private TouchSensor ClawT;
+
+        public String name = "Claw";
+
+        public Command open() {
+            return new ServoToPosition(Claw, // SERVO TO MOVE
+                    0.9, // POSITION TO MOVE TO
+                    this); // IMPLEMENTED SUBSYSTEM
+        }
+
+        public Command close() {
+            return new ServoToPosition(Claw, // SERVO TO MOVE
+                    0.2, // POSITION TO MOVE TO
+                    this); // IMPLEMENTED SUBSYSTEM
+        }
+
+        @Override
+        public void initialize() {
+            Claw = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, name);
+        }
+    }
 }
 
 

@@ -105,6 +105,11 @@ public class Mini_World_Teleop extends NextFTCOpMode {
         gamepadManager.getGamepad1().getA().setPressedCommand(shoulder.INSTANCE::not_zero);
         //gamepadManager.getGamepad1().getDpadLeft().setPressedCommand(lift.INSTANCE::Test_L);
         //gamepadManager.getGamepad1().getDpadLeft().setPressedCommand(lift.INSTANCE::Test_R);
+        if (gamepad1.right_bumper) {
+            driverControlled.setScalar(2);
+        }else {
+            driverControlled.setScalar(1);
+        }
 
 
         gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(

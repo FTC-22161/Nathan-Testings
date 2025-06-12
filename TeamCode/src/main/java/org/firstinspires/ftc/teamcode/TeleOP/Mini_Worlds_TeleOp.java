@@ -1,384 +1,397 @@
-package org.firstinspires.ftc.teamcode.example.java;
+package org.firstinspires.ftc.teamcode.Teleop;
 
+import androidx.annotation.NonNull;
 
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Gamepad;
-import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
-import com.rowanmcalpin.nextftc.core.Subsystem;
-import com.rowanmcalpin.nextftc.core.command.Command;
-import com.rowanmcalpin.nextftc.core.command.groups.ParallelGroup;
-import com.rowanmcalpin.nextftc.core.command.groups.SequentialGroup;
-import com.rowanmcalpin.nextftc.core.command.utility.InstantCommand;
-import com.rowanmcalpin.nextftc.core.command.utility.SingleFunctionCommand;
-import com.rowanmcalpin.nextftc.core.command.utility.conditionals.BlockingConditionalCommand;
-import com.rowanmcalpin.nextftc.core.command.utility.conditionals.PassiveConditionalCommand;
-import com.rowanmcalpin.nextftc.core.control.controllers.PIDFController;
-import com.rowanmcalpin.nextftc.core.control.controllers.feedforward.StaticFeedforward;
-import com.rowanmcalpin.nextftc.ftc.NextFTCOpMode;
-import com.rowanmcalpin.nextftc.ftc.OpModeData;
-import com.rowanmcalpin.nextftc.ftc.driving.MecanumDriverControlled;
-import com.rowanmcalpin.nextftc.ftc.hardware.MultipleServosToPosition;
-import com.rowanmcalpin.nextftc.ftc.hardware.ServoToPosition;
-import com.rowanmcalpin.nextftc.ftc.hardware.controllables.HoldPosition;
-import com.rowanmcalpin.nextftc.ftc.hardware.controllables.MotorEx;
-import com.rowanmcalpin.nextftc.ftc.hardware.controllables.MotorGroup;
-import com.rowanmcalpin.nextftc.ftc.hardware.controllables.ResetEncoder;
-import com.rowanmcalpin.nextftc.ftc.hardware.controllables.RunToPosition;
-import com.rowanmcalpin.nextftc.ftc.hardware.controllables.SetPower;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-
-import java.util.List;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 
-@TeleOp(name = "Mini_worlds_Teleop")
-public class Mini_World_Teleop extends NextFTCOpMode {
-
-    public Mini_World_Teleop() {
-        super(pitch.INSTANCE,claw.INSTANCE,diff.INSTANCE,shoulder.INSTANCE,lift.INSTANCE,ClawTouch.INSTANCE);
-    }
-    public String frontLeftName = "FL";
-    public String frontRightName = "FR";
-    public String backLeftName = "BL";
-    public String backRightName = "BR";
-    public MotorEx FL,FR,BL,BR,RL,LL, RP,LP;
+@TeleOp(name = "Michiana Teleop with the chicke strips")
+public class Michiana_Teleop extends LinearOpMode {
+    public DcMotorEx FL, FR, BL, BR,LL,RL,RP,LP;
     private TouchSensor ClawT;
-    public Servo Sweep,DiffR,DiffL,LightL,LightR;
-    public MotorEx[] motors;
-    public MotorGroup drive_train;
-    public MecanumDriverControlled driverControlled;
-    double DriveSpeed;
-    public boolean grip = true;
-    @Override
-    public void onInit() {
-        LL = new MotorEx("LL");
-        RL = new MotorEx("RL");
-        FL = new MotorEx("FL");
-        BL = new MotorEx("BL");
-        BR = new MotorEx("BR");
-        FR = new MotorEx("FR");
-        RP = new MotorEx("RP");
-        LP = new MotorEx("LP");
+    public TouchSensor Lswitch;
+    public Servo Sweep, DiffR, DiffL, LightL, LightR,Claw,RightS,LeftS;
+    public VoltageSensor batteryVoltageSensor;
+    double DriveSpeed = .5;
+    double Claw_Open = .45;
+    double Claw_Close = .9;
+    boolean claw_state = true; //True is open False is closed
+    private boolean isMoving = false;
+    private ElapsedTime timer = new ElapsedTime();
+    double FULLYCHARGEDBATTERYVOLTAGE = 14;
+    public void runOpMode() throws InterruptedException {
+        FL = hardwareMap.get(DcMotorEx.class, "FL");
+        FR = hardwareMap.get(DcMotorEx.class, "FR");
+        BL = hardwareMap.get(DcMotorEx.class, "BL");
+        BR = hardwareMap.get(DcMotorEx.class, "BR");
+        RL = hardwareMap.get(DcMotorEx.class, "RL");
+        LL = hardwareMap.get(DcMotorEx.class, "LL");
+        RP = hardwareMap.get(DcMotorEx.class, "RP");
+        LP = hardwareMap.get(DcMotorEx.class, "LP");
+        ClawT = hardwareMap.get(TouchSensor.class, "ClawT");
+        Lswitch = hardwareMap.get(TouchSensor.class, "Lswitch");
+        batteryVoltageSensor = hardwareMap.get(VoltageSensor.class, "Control Hub");
+        RightS = hardwareMap.get(Servo.class, "RightS");
+        LeftS = hardwareMap.get(Servo.class, "LeftS");
+        Claw = hardwareMap.get(Servo.class, "Claw");
+        Sweep = hardwareMap.get(Servo.class, "Sweep");
+        DiffR = hardwareMap.get(Servo.class, "DiffR");
+        DiffL = hardwareMap.get(Servo.class, "DiffL");
+        LightL = hardwareMap.get(Servo.class, "LightL");
+        LightR = hardwareMap.get(Servo.class, "LightR");
 
-        ClawT = OpModeData.INSTANCE.getHardwareMap().get(TouchSensor.class, "ClawT");
+        RP.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        RP.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        LP.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        LP.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        LP.setDirection(DcMotorEx.Direction.REVERSE);
 
 
-        // Change the motor directions to suit your robot.
-        FL.setDirection(DcMotorSimple.Direction.REVERSE);
-        BL.setDirection(DcMotorSimple.Direction.REVERSE);
-        FR.setDirection(DcMotorSimple.Direction.FORWARD);
-        BR.setDirection(DcMotorSimple.Direction.FORWARD);
-        drive_train = new MotorGroup(FL,FR,BL,BR);
-        motors = new MotorEx[] {FL, FR, BL, BR};
-        telemetry.addData("Status", "Touch Sensor Initialized");
-
-        telemetry.update();
+        LL.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        RL.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        LL.setDirection(DcMotorEx.Direction.REVERSE);
+        RL.setDirection(DcMotor.Direction.FORWARD);
+        LeftS.setDirection(Servo.Direction.REVERSE);
+        DiffR.setDirection(Servo.Direction.REVERSE);
+        waitForStart();
 
 
+        while (opModeIsActive() && !isStopRequested()) {
+            LL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            RL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            drive();
+            claw();
+            manual();
+            Claw_Touch();
+            dpad_down();
+            dpad_left();
+            dpad_up();
+            dpad_right();
+            sweep();
+            nathan();
+            telemetry.addData("Hight", RL.getCurrentPosition());
+            telemetry.addData("Pitch", RP.getCurrentPosition());
+            telemetry.update();
+//            if (!RP.isBusy() && !LP.isBusy()) {
+//                brake();
+//            }
+        }
     }
+    public void nathan() {
+        float x = gamepad2.left_stick_y;
 
-    @Override
-    public void onStartButtonPressed() {
-
-        driverControlled = new MecanumDriverControlled(motors, gamepadManager.getGamepad1());
-        driverControlled.invoke();
-
-
-        ClawTouch.INSTANCE.checkPressed().invoke();
-
-        gamepadManager.getGamepad1().getRightBumper().getPressedCommand();
-
-        new ResetEncoder(LL);
-        new ResetEncoder(RL);
-        gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(diff.INSTANCE::mid_l);
-        gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(diff.INSTANCE::mid_r);
-        gamepadManager.getGamepad2().getDpadDown().setPressedCommand(diff.INSTANCE::grab_l);
-        gamepadManager.getGamepad2().getDpadDown().setPressedCommand(diff.INSTANCE::grab_r);
-        gamepadManager.getGamepad2().getDpadUp().setPressedCommand(diff.INSTANCE::drop_l);
-        gamepadManager.getGamepad2().getDpadUp().setPressedCommand(diff.INSTANCE::drop_r);
-        gamepadManager.getGamepad1().getX().setPressedCommand(shoulder.INSTANCE::zero);
-        gamepadManager.getGamepad1().getA().setPressedCommand(shoulder.INSTANCE::not_zero);
-        //gamepadManager.getGamepad1().getDpadLeft().setPressedCommand(lift.INSTANCE::Test_L);
-        //gamepadManager.getGamepad1().getDpadLeft().setPressedCommand(lift.INSTANCE::Test_R);
-        if (gamepad1.right_bumper) {
-            driverControlled.setScalar(2);
+        if (gamepad2.left_stick_y < 0) {
+            LL.setPower(getCompensatedPower(1));
+            RL.setPower(getCompensatedPower(1));
+        }else if (gamepad2.left_stick_y > 0) {
+            LL.setPower(getCompensatedPower(-1));
+            RL.setPower(getCompensatedPower(-1));
         }else {
-            driverControlled.setScalar(1);
+            LL.setPower(0);
+            RL.setPower(0);
+        }
+    }
+    public void shoulder(double pos) {
+        double compensated = getCompensatedServoPosition(pos);
+        RightS.setPosition(compensated);
+        LeftS.setPosition(compensated);
+    }
+    public void dpad_down() {
+        double chicken = getCompensatedServoPosition(.375);
+        double jeff = getCompensatedServoPosition(.5);
+        double l = getCompensatedServoPosition(.15);
+        double lp = getCompensatedServoPosition(.2);
+        if(gamepad2.dpad_down) {
+            shoulder(chicken);
+            diffy(.2,.2);
+            driveToPitchPositionRecursiveDual(0,10);
+            RP.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            RP.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+            LP.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            LP.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        }
+        if (gamepad2.right_bumper && !gamepad2.a && !gamepad2.b && !gamepad2.x) {
+            Claw.setPosition(Claw_Close);
+            claw_state = false;
+            sleep(150);
+            shoulder(jeff);
+            diffy(DiffR.getPosition(), DiffL.getPosition());
+            sleep(150);
+            Claw_Touch();
+            sleep(150);
+            shoulder(chicken);
+            diffy(DiffR.getPosition(),DiffL.getPosition());
+
+        }
+        if (gamepad2.dpad_down && gamepad2.a) {
+            diffy(.2,.2);
+        }
+        if (gamepad2.dpad_down && gamepad2.b) {
+            diffy(.05,.35);
+        }
+        if (gamepad2.dpad_down && gamepad2.x) {
+            diffy(.35,.05);
+        }
+    }
+    public void dpad_left() {
+            if (gamepad2.dpad_left) {
+                shoulder(0);
+                diffy(.35,.35);
+                driveToPositionRecursiveDual(RL,LL,0,.7);
+                driveToPitchPositionRecursiveDual(700,10);
+            }
+        }
+    public void dpad_up() {
+        double chicken = getCompensatedServoPosition(.375);
+        if (gamepad2.dpad_up) {
+            shoulder(chicken);
+            diffy(.2,.2);
+            driveToPitchPositionRecursiveDual(700,10);
+        }
+    }
+    public void dpad_right() {
+        if (gamepad2.dpad_right) {
+            double chicken = getCompensatedServoPosition(.375);
+            shoulder(chicken);
+            diffy(.2,.2);
+            driveToPitchPositionRecursiveDual(250,50);
         }
 
+    }
+    public void manual() {
+        // Pitch control (horizontal arm movement)
+        if (gamepad1.x && !gamepad1.dpad_down && !gamepad1.dpad_up && !gamepad1.dpad_right && !gamepad1.dpad_left &&
+                !gamepad2.dpad_right && !gamepad2.dpad_down && !gamepad2.dpad_up && !gamepad2.dpad_left) {
+            double rpVel = RP.getVelocity();
+            double lpVel = LP.getVelocity();
 
-        gamepadManager.getGamepad2().getDpadLeft().setPressedCommand(
-                () -> new ParallelGroup(
-                        lift.INSTANCE.Test_L(),
-                        lift.INSTANCE.Test_R()
-                )
-        );
-        gamepadManager.getGamepad2().getDpadUp().setPressedCommand(
-                () -> new SequentialGroup(
-                        new ParallelGroup(
-                                pitch.INSTANCE.Score_L_Bar(),
-                                pitch.INSTANCE.Score_R_Bar()
-                        ),
-                        pitch.INSTANCE.Stop()
-                )
-        );
-        gamepadManager.getGamepad2().getDpadDown().setPressedCommand(
-                () -> new ParallelGroup(
-                        diff.INSTANCE.grab_l(),
-                        diff.INSTANCE.grab_r()
-                )
-        );
+// Set a higher threshold to prevent jitter
+            double velocityThreshold = 20; // Ticks/sec
+
+// Apply low reverse power if the motor is still "coasting"
+            double brakePower = 0.03; // Keep this small, adjust as needed
+
+            if (Math.abs(rpVel) > velocityThreshold) {
+                RP.setPower(-Math.signum(rpVel) * brakePower);
+            } else {
+                RP.setPower(0);
+            }
+
+            if (Math.abs(lpVel) > velocityThreshold) {
+                LP.setPower(-Math.signum(lpVel) * brakePower);
+            } else {
+                LP.setPower(0);
+            }
+
+            RL.setPower(0);
+            LL.setPower(0);
+        } else if (gamepad1.x) {
+            if (gamepad1.dpad_left) {
+                RP.setPower(getCompensatedPower(-.9));
+                LP.setPower(getCompensatedPower(-.9));
+            } else if (gamepad1.dpad_right) {
+                RP.setPower(getCompensatedPower(1));
+                LP.setPower(getCompensatedPower(1));
+            } else {
+                RP.setPower(0);
+                LP.setPower(0);
+            }
+            if (gamepad1.dpad_up) {
+                RL.setPower(getCompensatedPower(0.7));
+                LL.setPower(getCompensatedPower(0.7));
+            } else if (gamepad1.dpad_down) {
+                RL.setPower(getCompensatedPower(-0.7));
+                LL.setPower(getCompensatedPower(-0.7));
+            } else {
+                RL.setPower(0);
+                LL.setPower(0);
+            }
+        }
+    }
+    public void drive() {
+        FL.setPower(getCompensatedPower(DriveSpeed * ((gamepad1.left_stick_y) - (gamepad1.left_stick_x) - (gamepad1.right_stick_x))));
+        BL.setPower(getCompensatedPower(DriveSpeed * ((gamepad1.left_stick_y) + (gamepad1.left_stick_x) - (gamepad1.right_stick_x))));
+        FR.setPower(getCompensatedPower(DriveSpeed * ((-gamepad1.left_stick_y) - (gamepad1.left_stick_x) - (gamepad1.right_stick_x))));
+        BR.setPower(getCompensatedPower(DriveSpeed * ((-gamepad1.left_stick_y) + (gamepad1.left_stick_x) - (gamepad1.right_stick_x))));
+        if (gamepad1.right_bumper) {
+            DriveSpeed = 1;
+        }else {
+            DriveSpeed = .25;
+        }
+    }
+    private double getCompensatedServoPosition(double basePosition) {
+        double referenceVoltage = FULLYCHARGEDBATTERYVOLTAGE;
+        double currentVoltage = batteryVoltageSensor.getVoltage();
+        // Adjust the servo position slightly based on voltage
+        double compensationFactor = referenceVoltage / currentVoltage;
+        double compensatedPosition = basePosition * compensationFactor;
+
+        return basePosition;
+    }
+    public double getCompensatedPower(double basePower) {
+        double referenceVoltage = FULLYCHARGEDBATTERYVOLTAGE;
+        double currentVoltage = batteryVoltageSensor.getVoltage();
+        if (currentVoltage < 8.0) return 0; // safety cutoff
+        double compensatedPower = basePower * (referenceVoltage / currentVoltage);
+        return Math.max(-1.0, Math.min(1.0, compensatedPower)); // Clamp between -1 and 1
+    }
+    public Servo claw() {
+        if (gamepad2.x && claw_state == true) {
+            double compensatedPosition = getCompensatedServoPosition(Claw_Close);
+            Claw.setPosition(compensatedPosition); //Close
+            claw_state = false;
+            sleep(150);
+        }else if (gamepad2.x && claw_state == false) {
+            double compensatedPosition = getCompensatedServoPosition(Claw_Open);
+            Claw.setPosition(compensatedPosition); //Open
+            claw_state = true;
+            sleep(150);
+        }
+        return null;
+    }
+    public TouchSensor Claw_Touch() {
+        if (ClawT.isPressed() && !gamepad2.x) {
+            double compensatedPosition = getCompensatedServoPosition(Claw_Open);
+            Claw.setPosition(compensatedPosition);
+            LightL.setPosition(.5);
+            LightR.setPosition(.5);
+            claw_state = false;
+        }else if (gamepad2.x) {
+            LightL.setPosition(.37);
+            LightR.setPosition(.37);
+        }
+        else {
+            LightR.setPosition(.37);
+            LightL.setPosition(.37);
+        }
+        return null;
+    }
+    public void driveToPositionRecursiveDual(@NonNull DcMotor RL, @NonNull DcMotor LL, int targetTicks, double basePower) {
+        double power = getCompensatedPower(basePower);
+
+        RL.setTargetPosition(targetTicks);
+        LL.setTargetPosition(targetTicks);
+
+        RL.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        LL.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        RL.setPower(power);
+        LL.setPower(power);
+
+        recursiveMotorCheckDual(RL, LL, targetTicks, power, 0);
+    }
+    private void recursiveMotorCheckDual(DcMotor RL, DcMotor LL, int target, double power, int depth) {
+        if (!opModeIsActive()) return;
+
+        boolean RLdone = !RL.isBusy();
+        boolean LLdone = !LL.isBusy();
+
+        // Base case: both motors finished or recursion too deep
+        if ((RLdone && LLdone) || depth > 1000) {
+            RL.setPower(0);
+            LL.setPower(0);
+            return;
+        }
+
+        telemetry.addData("RL Target", target);
+        telemetry.addData("RL Current", RL.getCurrentPosition());
+        telemetry.addData("LL Target", target);
+        telemetry.addData("LL Current", LL.getCurrentPosition());
+        telemetry.addData("Voltage", batteryVoltageSensor.getVoltage());
         telemetry.update();
+
+        // Delay for tick (10ms)
+        sleep(10);
+
+        // Recursive call
+        recursiveMotorCheckDual(RL, LL, target, power, depth + 1);
+    }
+    public void driveToPitchPositionRecursiveDual(int targetTicks, double basePower) {
+        double power = getCompensatedPower(basePower);
+
+        // Set target positions
+        RP.setTargetPosition(targetTicks);
+        LP.setTargetPosition(targetTicks);
+
+        // Set run-to-position mode
+        RP.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        LP.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        // Apply power
+        RP.setPower(power);
+        LP.setPower(power);
+
+        // Begin recursive monitoring
+        recursiveMotorCheckDualPitch(RP, LP, targetTicks, power, 0);
+    }
+    private void recursiveMotorCheckDualPitch(DcMotor RP, DcMotor LP, int target, double power, int depth) {
+        if (!opModeIsActive()) return;
+
+        boolean RPdone = !RP.isBusy();
+        boolean LPdone = !LP.isBusy();
+
+        // Base case
+        if ((RPdone && LPdone) || depth > 1000) {
+            RP.setPower(0);
+            LP.setPower(0);
+            return;
+        }
+
+        telemetry.addData("RP Target", target);
+        telemetry.addData("RP Current", RP.getCurrentPosition());
+        telemetry.addData("LP Target", target);
+        telemetry.addData("LP Current", LP.getCurrentPosition());
+        telemetry.addData("Voltage", batteryVoltageSensor.getVoltage());
+        telemetry.update();
+
+        sleep(10); // delay between checks
+
+        recursiveMotorCheckDualPitch(RP, LP, target, power, depth + 1);
     }
 
-    public static class ClawTouch extends Subsystem {
-        // Singleton instance
-        public static final ClawTouch INSTANCE = new ClawTouch();
-        public ClawTouch() { }
-        // Touch sensor hardware
-        private TouchSensor ClawT;
-
-        // Command to check if the sensor is pressed and update telemetry
-        public Command checkPressed() {
-            return new SingleFunctionCommand(() -> {
-                if (ClawT.isPressed()) {
-                    OpModeData.INSTANCE.getTelemetry().addData("Claw Touch Sensor", "Is Pressed");
-                    OpModeData.INSTANCE.getTelemetry().update();
-                    claw.INSTANCE.close();
-                } else {
-                    OpModeData.INSTANCE.getTelemetry().addData("Claw Touch Sensor", "Is Not Pressed");
-                    OpModeData.INSTANCE.getTelemetry().update();
-                }
-                return true;
-            });
-        }
-
-        @Override
-        public void initialize() {
-            ClawT = OpModeData.INSTANCE.getHardwareMap().get(TouchSensor.class, "ClawT");
+    public void diffy(double pos1, double pos2) {
+        double poscomp1 = getCompensatedServoPosition(pos1);
+        double poscomp2 = getCompensatedServoPosition(pos2);
+        DiffR.setPosition(poscomp1);
+        DiffL.setPosition(poscomp2);
+    }
+    public void sweep() {
+        if (gamepad1.a) {
+            Sweep.setPosition(.3);
+        }else {
+            Sweep.setPosition(0);
         }
     }
-    public static class shoulder extends Subsystem {
-        public static final shoulder INSTANCE = new shoulder();
-        private shoulder() {}
-        Servo LeftS,RightS;
-        public MultipleServosToPosition zero() {
-            return new MultipleServosToPosition(
-                    List.of(
-                            LeftS,
-                            RightS
-                    ),
-                    0,
-                    this
-            );
-        }
-        public MultipleServosToPosition not_zero() {
-            return new MultipleServosToPosition(
-                    List.of(
-                            LeftS,
-                            RightS
-                    ),
-                    .5,
-                    this
-            );
+    public void brake() {
+        double rpVel = RP.getVelocity();
+        double lpVel = LP.getVelocity();
+
+// Set a higher threshold to prevent jitter
+        double velocityThreshold = 20; // Ticks/sec
+
+// Apply low reverse power if the motor is still "coasting"
+        double brakePower = 0.03; // Keep this small, adjust as needed
+
+        if (Math.abs(rpVel) > velocityThreshold) {
+            RP.setPower(-Math.signum(rpVel) * brakePower);
+        } else {
+            RP.setPower(0);
         }
 
-        @Override
-        public void initialize() {
-            LeftS = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "LeftS");
-            RightS = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "RightS");
-            RightS.setDirection(Servo.Direction.REVERSE);
-        }
-    }
-    public static class pitch extends Subsystem {
-        public static final pitch INSTANCE = new pitch();
-        private pitch() {}
-
-        public MotorEx RP, LP;
-        public MotorGroup pitching;
-
-        public VoltageSensor voltageSensor;
-        double nominalVoltage = 14.0;
-
-        // Tuned base constants
-        double baseKp = 0.001;
-        double baseKd = 0.0001;
-        double baseKF = 0.0;
-
-        public PIDFController controller2;
-        public PIDFController stop = new PIDFController(0.1, 0.0, 0.0001, new StaticFeedforward(0.0));
-
-        public String LPName = "LP";
-        public String RPName = "RP";
-
-        public int target = 45;
-
-        public RunToPosition Score_R_Bar() {
-            return new RunToPosition(RP, target, controller2, this);
+        if (Math.abs(lpVel) > velocityThreshold) {
+            LP.setPower(-Math.signum(lpVel) * brakePower);
+        } else {
+            LP.setPower(0);
         }
 
-        public RunToPosition Score_L_Bar() {
-            return new RunToPosition(LP, target, controller2, this);
-        }
-
-        public HoldPosition Stop() {
-            return new HoldPosition(pitching, stop, this);
-        }
-
-        @Override
-        public void initialize() {
-            // Motors
-            RP = new MotorEx(RPName);
-            LP = new MotorEx(LPName);
-            LP.setDirection(DcMotorSimple.Direction.REVERSE);
-            pitching = new MotorGroup(RP, LP);
-
-            // Reset encoders
-            new ResetEncoder(RP);
-            new ResetEncoder(LP);
-
-            // Voltage sensor (safe fallback)
-            for (VoltageSensor sensor : OpModeData.INSTANCE.getHardwareMap().getAll(VoltageSensor.class)) {
-                if (sensor.getVoltage() > 0) {
-                    voltageSensor = sensor;
-                    break;
-                }
-            }
-
-            if (voltageSensor == null) {
-                throw new RuntimeException("No valid voltage sensor found!");
-            }
-
-            // Scale PID constants based on current voltage
-            double currentVoltage = voltageSensor.getVoltage();
-            double scale = nominalVoltage / currentVoltage;
-
-            double newKP = baseKp * scale;
-            double newKD = baseKd * scale;
-            double newKF = baseKF * scale;
-
-            // Create scaled PIDF controller
-            controller2 = new PIDFController(newKP, 0.0, newKD, new StaticFeedforward(newKF));
-        }
-    }
-    public static class lift extends Subsystem {
-        public static final lift INSTANCE = new lift();
-        private lift() { }
-
-        public MotorEx RL,LL;
-
-
-        public PIDFController controller = new PIDFController(0.0025, 0.0, 0.0, new StaticFeedforward(0.0));
-
-        public Command Test_L() {
-            return new RunToPosition(LL,500,controller,this);
-        }
-        public Command Test_R() {
-            return new RunToPosition(RL,500,controller,this);
-        }
-
-        @Override
-        public void initialize() {
-            RL = new MotorEx("RL");
-            LL = new MotorEx("LL");
-        }
-
-
-    }
-    public static class sweeping extends Subsystem {
-        public static final sweeping INSTANCE = new sweeping();
-        private sweeping() { }
-
-        public Servo Sweep;
-
-        public Command out() {
-            return new ServoToPosition(Sweep, // SERVO TO MOVE
-                    0.5, // POSITION TO MOVE TO
-                    this);
-        }
-        public Command in() {
-            return new ServoToPosition(Sweep, // SERVO TO MOVE
-                    0, // POSITION TO MOVE TO
-                    this);
-        }
-        @Override
-        public void initialize() {
-            Sweep = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "Sweep");
-        }
-    }
-    public static class diff extends Subsystem {
-        public static final diff INSTANCE = new diff();
-        private diff() { }
-
-        Servo DiffR,DiffL;
-
-
-        public Command mid_l() {
-            return new ServoToPosition(DiffL, // SERVO TO MOVE
-                    0.5, // POSITION TO MOVE TO
-                    this); // IMPLEMENTED SUBSYSTEM
-        }
-        public Command mid_r() {
-            return new ServoToPosition(DiffR, // SERVO TO MOVE
-                    0.5, // POSITION TO MOVE TO
-                    this); // IMPLEMENTED SUBSYSTEM
-        }
-
-        public Command grab_r() {
-            return new ServoToPosition(DiffR,.9,this);
-        }
-        public Command grab_l() {
-            return new ServoToPosition(DiffL,.1,this);
-        }
-        public Command drop_r() {
-            return new ServoToPosition(DiffR,.18,this);
-        }
-        public Command drop_l() {
-            return new ServoToPosition(DiffL,.83,this);
-        }
-
-
-
-        @Override
-        public void initialize() {
-            DiffR = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "DiffR");
-            DiffL = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, "DiffL");
-        }
-    }
-    public static class claw extends Subsystem {
-        // BOILERPLATE
-        public static final claw INSTANCE = new claw();
-        private claw() { }
-
-        // USER CODE
-        public Servo Claw;
-
-        private TouchSensor ClawT;
-
-        public String name = "Claw";
-
-        public Command open() {
-            return new ServoToPosition(Claw, // SERVO TO MOVE
-                    0.9, // POSITION TO MOVE TO
-                    this); // IMPLEMENTED SUBSYSTEM
-        }
-
-        public Command close() {
-            return new ServoToPosition(Claw, // SERVO TO MOVE
-                    0.2, // POSITION TO MOVE TO
-                    this); // IMPLEMENTED SUBSYSTEM
-        }
-
-        @Override
-        public void initialize() {
-            Claw = OpModeData.INSTANCE.getHardwareMap().get(Servo.class, name);
-        }
-    }
+        RL.setPower(0);
+        LL.setPower(0);}
 }
-
-
